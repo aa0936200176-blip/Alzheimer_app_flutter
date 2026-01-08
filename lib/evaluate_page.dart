@@ -1,5 +1,7 @@
 import 'package:alzheimer_app/main.dart';
 import 'package:flutter/material.dart';
+import 'dart:convert'; // 用來轉 JSON
+import 'package:http/http.dart' as http; // 用來發送請求
 
 
 // =======================
@@ -94,23 +96,82 @@ class _AssessmentFlowPageState extends State<AssessmentFlowPage> {
     }
   }
 
-  void _submitResults() {
-    // 這裡處理最終送出邏輯 (例如傳送到 API)
+  // async 方法，因為網路請求是異步的
+  Future<void> _submitResults() async {
+    // 1. 顯示載入中的轉圈圈 (這是良好的 UX)
     showDialog(
       context: context,
+      barrierDismissible: false,
+      builder: (ctx) => const Center(child: CircularProgressIndicator()),
+    );
+
+    // 2. 打包數據
+    // 這裡的 key (例如 "memory_score") 要看後端 API 定義的欄位名稱
+    final Map<String, dynamic> requestData = {
+      "MemoryComplaints": _result.memoryScore,
+      "ADL": _result.adlScore,
+      "SleepQuality": _result.sleepScore,
+      "MMSE": _result.mmseScore,
+      "BehavioralProblems": _result.behaviorScore,
+      "FunctionalAssessment": _result.functionScore
+    };
+
+    try {
+      // 3. 發送 API 請求
+      final Uri url = Uri.parse("http://himhealth.mcu.edu.tw:8048");
+
+      final response = await http.post(
+        url,
+        headers: {"Content-Type": "application/json"},
+        body: jsonEncode(requestData), // 將 Map 轉為 JSON 字串
+      );
+
+      // 關閉載入中的轉圈圈
+      if (mounted) Navigator.pop(context);
+
+      // 4. 檢查伺服器回應
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        // --- 成功：顯示原本的成功對話框 ---
+        _showSuccessDialog();
+      } else {
+        // --- 失敗：顯示錯誤訊息 ---
+        _showErrorSnackBar("上傳失敗 (錯誤碼: ${response.statusCode})");
+      }
+    } catch (e) {
+      // 關閉載入中
+      if (mounted) Navigator.pop(context);
+      // 網路連線異常 (例如沒開網路)
+      _showErrorSnackBar("連線錯誤：$e");
+    }
+  }
+
+  // 評估成功對話框
+  void _showSuccessDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
       builder: (ctx) => AlertDialog(
         title: const Text("評估完成"),
-        content: Text("您的評估結果如下：\n\n${_result.toString()}"),
+        content: Text("您的評估結果已成功上傳！\n\n${_result.toString()}"),
         actions: [
-          TextButton(
+          ElevatedButton(
             onPressed: () {
-              Navigator.pop(ctx); // Close dialog
-
-              Navigator.pop(context);
+              Navigator.pop(ctx); // 關閉 Dialog
+              Navigator.pop(context); // 回到主頁面
             },
-            child: const Text("回評估首頁"),
+            child: const Text("完成，回到首頁"),
           )
         ],
+      ),
+    );
+  }
+
+  // 顯示錯誤的輔助方法
+  void _showErrorSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.red,
       ),
     );
   }

@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
 
-import 'home_page.dart';
-import 'home_page_review.dart';
-import 'remind_page.dart';
-import 'disseminate_page.dart';
-import 'evaluate_page.dart';
-import 'login_page.dart';
-import 'healthedu_page.dart';
+import 'home_page.dart';//遊戲訓練
+import 'home_page_review.dart';//遊戲回顧
+import 'remind_page.dart';//每日提醒
+import 'evaluate_page.dart';//問卷評估
+import 'login_page.dart';//登入
+import 'healthedu_page.dart';//衛教宣導
 
 
 void main() {
