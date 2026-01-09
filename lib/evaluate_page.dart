@@ -118,7 +118,7 @@ class _AssessmentFlowPageState extends State<AssessmentFlowPage> {
 
     try {
       // 3. 發送 API 請求
-      final Uri url = Uri.parse("http://himhealth.mcu.edu.tw:8048");
+      final Uri url = Uri.parse("http://himhealth.mcu.edu.tw:8048/docs");
 
       final response = await http.post(
         url,

@@ -235,6 +235,7 @@ class _GameLevelPageState extends State<GameLevelPage> {
       ),
     );
   }//介面
+
 }//翻牌遊戲
 
 
@@ -508,6 +509,7 @@ class _Game2PageState extends State<Game2Page> {
       ),
     );
   }
+
 }//看字選色遊戲
 
 
@@ -519,80 +521,76 @@ class PuzzleGamePage extends StatefulWidget {
 }
 
 class _PuzzleGamePageState extends State<PuzzleGamePage> {
-  int level = 1; // 關卡數
-  int seconds = 0;
-  Timer? timer;
-
-  late List<int?> placedPieces; // 拼圖板上的拼圖 (pieceValue), null = 空格
-  late List<int> trayPieces;    // 尚未放到拼圖板上的拼圖 (pieceValue)
-
-  ui.Image? fullImage; // 完整的圖片用於提示圖
-
-  late List<int> correct; // 正確拼圖順序 (pieceValue == index)
-  late int gridSize; // 每關的拼圖大小，例如 2x2、3x3
-  late List<ui.Image> pieces; // 真正裁好的拼圖片
+  int level = 1;
+  int gridSize = 3; // 起始為 3x3，如截圖所示
   bool isLoading = true;
+
+  // 核心數據結構：currentBoardState 存儲目前網格上每個位置放的是哪一號拼圖
+  // 例如：currentBoardState[0] = 5 表示第 0 格放著第 5 號拼圖
+  late List<int> currentBoardState;
+
+  late List<ui.Image> pieces; // 切割好的圖片碎片
+  ui.Image? fullImage;
 
   @override
   void initState() {
     super.initState();
     _startLevel();
-    timer = Timer.periodic(const Duration(seconds: 1), (_) {
-      setState(() {
-        seconds++;
-      });
-    });
   }
 
   Future<void> _startLevel() async {
-    gridSize = min(2 + level, 4);// 讓 gridSize 依 level 增加，但最多到 4x4
-    int totalPieces = gridSize * gridSize;
-    ui.Image? loadedImage;
+    // 隨著等級增加難度 (3x3 -> 4x4 -> 5x5...)
+    gridSize = 2 + (level / 2).ceil();
+    if (gridSize < 3) gridSize = 3; // 保持最小 3x3
 
-    // 載入圖片並裁切
+    int totalPieces = gridSize * gridSize;
+
     try {
-      final data = await rootBundle.load("assets/puzzle.jpg");
+      // 載入圖片
+      final data = await rootBundle.load("assets/image/animal2.jpeg");
       final codec = await ui.instantiateImageCodec(data.buffer.asUint8List());
       final frame = await codec.getNextFrame();
-      loadedImage = frame.image; // 載入完整的圖片
-
-      pieces = await _splitImage(loadedImage, gridSize);
-
-      // 儲存完整的圖片用於提示圖
+      ui.Image loadedImage = frame.image;
       fullImage = loadedImage;
 
+      // 切割圖片
+      pieces = await _splitImage(loadedImage, gridSize);
+
+      // 初始化拼圖位置
+      // 1. 產生正確的順序 [0, 1, 2, 3...]
+      currentBoardState = List.generate(totalPieces, (index) => index);
+
+      // 2. 打亂順序 (確保不會一開始就是贏的)
+      do {
+        currentBoardState.shuffle();
+      } while (_isSolved()); // 如果剛好隨機成正確答案，就重洗
+
     } catch (e) {
-      print("Error loading or splitting image: $e");
-      return;
+      print("Error: $e");
     }
 
-    correct = List.generate(totalPieces, (i) => i);
-
-    placedPieces = List.filled(totalPieces, null);
-    trayPieces = List.generate(totalPieces, (i) => i)..shuffle();
-
-    setState(() {
-      isLoading = false;
-    });
+    if (mounted) {
+      setState(() {
+        isLoading = false;
+      });
+    }
   }
 
-  //切割圖片成 NxN (保持原方法)
-  Future<List<ui.Image>> _splitImage(ui.Image image, int grid) async {
-    // 保持圖片為正方形
-    int minSize = min(image.width, image.height);
 
+  Future<List<ui.Image>> _splitImage(ui.Image image, int grid) async {
+    int minSize = min(image.width, image.height);// 取最短邊，確保切出來是正方形
     int pieceSize = (minSize / grid).floor();
     List<ui.Image> output = [];
 
-    // 計算圖片中心點，以便從中間裁切正方形
-    int offsetX = (image.width - minSize) ~/ 2;
-    int offsetY = (image.height - minSize) ~/ 2;
+    int offsetX = (image.width - minSize) ~/ 2;// 算出 X 偏移量 (置中)
+    int offsetY = (image.height - minSize) ~/ 2;// 算出 Y 偏移量 (置中)
 
     for (int y = 0; y < grid; y++) {
       for (int x = 0; x < grid; x++) {
         final recorder = ui.PictureRecorder();
         final canvas = Canvas(recorder);
 
+        // 裁切
         canvas.drawImageRect(
           image,
           Rect.fromLTWH(
@@ -605,298 +603,176 @@ class _PuzzleGamePageState extends State<PuzzleGamePage> {
           Paint(),
         );
 
-        final piece =
-        await recorder.endRecording().toImage(pieceSize, pieceSize);
+        final piece = await recorder.endRecording().toImage(pieceSize, pieceSize);
         output.add(piece);
       }
     }
     return output;
-  }
+  }// 切割圖片邏輯
 
-  void _handlePieceDrop(int pieceValue, int targetIndex) {
+
+  void _swapPieces(int sourceIndex, int targetIndex) {
     setState(() {
-      // 1. 如果目標位置已經有拼圖，則將該拼圖退回托盤
-      //    (在 Jigsaw 玩法中，如果只允許放到正確位置，這個邏輯可以簡化)
-      if (placedPieces[targetIndex] != null) {
-        trayPieces.add(placedPieces[targetIndex]!);
-      }
-
-      // 2. 將拖曳進來的拼圖從托盤中移除
-      trayPieces.remove(pieceValue);
-
-      // 3. 將新的拼圖放到目標位置
-      placedPieces[targetIndex] = pieceValue;
+      // 交換兩個位置的數值
+      final temp = currentBoardState[sourceIndex];
+      currentBoardState[sourceIndex] = currentBoardState[targetIndex];
+      currentBoardState[targetIndex] = temp;
     });
 
-    _checkWinCondition();
-  }
-
-  void _checkWinCondition() {
-    bool isWin = true;
-    for (int i = 0; i < placedPieces.length; i++) {
-      // 判斷該位置上的拼圖是否就是正確的拼圖 (pieceValue == index)
-      if (placedPieces[i] != i) {
-        isWin = false;
-        break;
-      }
+    if (_isSolved()) {
+      _showWinDialog();
     }
+  }// 處理交換邏輯
 
-    if (isWin) {
-      _nextLevel();
+
+  bool _isSolved() {
+    for (int i = 0; i < currentBoardState.length; i++) {
+      if (currentBoardState[i] != i) return false;
     }
-  }
+    return true;
+  }// 檢查是否完成
 
-  void _nextLevel() {
-    Future.delayed(const Duration(milliseconds: 500), () {
-      if (level < 3) {//關卡數
-        setState(() {
-          level++;
-          isLoading = true;
-        });
-        _startLevel();
-      } else {
-        timer?.cancel();
-        _showFinalDialog();
-      }
-    });
-  }
-
-  void _showFinalDialog() {
+  void _showWinDialog() {
     showDialog(
       context: context,
+      barrierDismissible: false,
       builder: (_) => AlertDialog(
-        title: const Text("遊戲完成 🎉"),
-        content: Text("總花費時間：$seconds 秒"),
+        title: const Text("Level Completed! 🎉"),
+        content: const Text("Great job! Ready for the next challenge?"),
         actions: [
           TextButton(
             onPressed: () {
               Navigator.pop(context);
               setState(() {
-                level = 1;
-                seconds = 0;
+                level++;
                 isLoading = true;
               });
               _startLevel();
-              timer = Timer.periodic(const Duration(seconds: 1), (_) {
-                setState(() {
-                  seconds++;
-                });
-              });
             },
-            child: const Text("再玩一次"),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              Navigator.pop(context);
-            },
-            child: const Text("回主選單"),
+            child: const Text("Next Level"),
           ),
         ],
       ),
     );
-  }
+  }//過關訊息
 
-  @override
-  void dispose() {
-    timer?.cancel();
-    super.dispose();
-  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      extendBodyBehindAppBar: true,
       appBar: AppBar(
-        title: Text("第 $level 關 ( ${gridSize}x$gridSize )"),
-        actions: [
-          Center(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Text("⏱ $seconds 秒"),
-              )),
-        ],
+        title: Text("Level $level", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        iconTheme: const IconThemeData(color: Colors.white),
       ),
-      body: isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : LayoutBuilder(
-        builder: (context, constraints) {
-          // 計算主板和托盤的尺寸
-          // 讓托盤佔用 20% 寬度，主拼圖區佔用 80%
-          double mainAreaWidth = constraints.maxWidth * 0.8;
+      body: Container(
+        width: double.infinity,
+        height: double.infinity,
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Color(0xFF4A90E2), Color(0xFF003366)],
+          ),
+        ),
+        // 1. 確保整個遊戲區塊在螢幕正中央
+        alignment: Alignment.center,
 
-          // 讓主拼圖區的高度可以填滿可用高度 (減去一些邊距)
-          double mainAreaHeight = constraints.maxHeight - 32;
-
-          // 計算主拼圖區 (提示圖+拼圖板) 可用的最大正方形邊長
-          // 這是為了保持拼圖板的正方形比例
-          double maxSide = min(mainAreaWidth, mainAreaHeight);
-
-          // 提示圖佔總高度的 35%，拼圖板佔 65%
-          double hintRatio = 0.35;
-          double boardRatio = 0.65;
-
-          // 拼圖板的尺寸：取主區域的 maxSide 的 boardRatio
-          double boardSide = maxSide * boardRatio;
-
-          // 提示圖的尺寸：取主區域的 maxSide 的 hintRatio
-          double hintSide = maxSide * hintRatio;
-
-          double pieceSize = boardSide / gridSize; // 單個拼圖的大小
-
-          return Row(
-            children: [
-              // 1. 拼圖區 (提示圖 + 拼圖板) - 佔據大部分空間
-              Expanded(
-                child: Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      // *** 提示圖 (原圖) ***
-                      if (fullImage != null)
-                        Container(
-                          width: hintSide,
-                          height: hintSide,
-                          margin: const EdgeInsets.only(bottom: 16.0),
-                          decoration: BoxDecoration(
-                            border: Border.all(color: Colors.black, width: 2),
-                          ),
-                          child: RawImage(
-                            image: fullImage!,
-                            fit: BoxFit.cover,
-                          ),
-                        ),
-
-                      // *** 拼圖板 (Drag Targets) ***
-                      Container(
-                        width: boardSide,
-                        height: boardSide,
-                        decoration: BoxDecoration(
-                          border: Border.all(color: Colors.blueAccent, width: 4),
-                          color: Colors.grey[300], // 拼圖底色
-                        ),
-                        child: GridView.builder(
-                          physics: const NeverScrollableScrollPhysics(),
-                          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: gridSize,
-                          ),
-                          itemCount: placedPieces.length,
-                          itemBuilder: (context, targetIndex) {
-                            int? pieceValue = placedPieces[targetIndex];
-
-                            // 每個網格都是一個 DragTarget
-                            return DragTarget<int>(
-                              onWillAcceptWithDetails: (details) {
-                                int draggedPieceValue = details.data;
-                                // Jigsaw 邏輯：只允許拖到**正確的**位置
-                                return draggedPieceValue == targetIndex;
-                              },
-                              onAcceptWithDetails: (details) {
-                                int draggedPieceValue = details.data;
-                                _handlePieceDrop(draggedPieceValue, targetIndex);
-                              },
-                              builder: (context, candidateData, rejectedData) {
-                                // 如果這個位置已經有拼圖了
-                                if (pieceValue != null) {
-                                  // 顯示已經放好的拼圖
-                                  return RawImage(
-                                    image: pieces[pieceValue],
-                                    fit: BoxFit.cover,
-                                  );
-                                }
-
-                                // 如果是空白格
-                                Color targetColor = candidateData.isNotEmpty
-                                    ? Colors.green.withOpacity(0.5)
-                                    : Colors.transparent;
-                                return Container(
-                                  decoration: BoxDecoration(
-                                    color: targetColor,
-                                    // 繪製網格線
-                                    border: Border.all(color: Colors.black12, width: 1.0),
-                                  ),
-                                );
-                              },
-                            );
-                          },
-                        ),
-                      ),
-                    ],
+        child: isLoading
+            ? const CircularProgressIndicator(color: Colors.white)
+            : Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: AspectRatio(
+            aspectRatio: 1, // 2. 強制鎖定拼圖區為正方形
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.black, // 黑色縫隙底色
+                borderRadius: BorderRadius.circular(4),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Colors.black54,
+                    blurRadius: 10,
+                    offset: Offset(0, 5),
                   ),
+                ],
+              ),
+              padding: const EdgeInsets.all(2.0),
+
+              // ★★★ 關鍵修正：移除所有自動留白 ★★★
+              child: MediaQuery.removePadding(
+                context: context,
+                removeTop: true, // 告訴 Flutter 不要因為有 AppBar 就往下推
+                removeBottom: true,
+                child: GridView.builder(
+                  // 3. 另外加上 padding: zero 確保萬無一失
+                  padding: EdgeInsets.zero,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: currentBoardState.length,
+                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: gridSize,
+                    crossAxisSpacing: 2.0,
+                    mainAxisSpacing: 2.0,
+                  ),
+                  itemBuilder: (context, index) {
+                    int pieceIndex = currentBoardState[index];
+                    return _buildDraggablePiece(index, pieceIndex);
+                  },
                 ),
               ),
-
-              // 2. 拼圖托盤 (Draggables)
-              Container(
-                width: constraints.maxWidth * 0.25, // 托盤佔據右側 25% 寬度
-                padding: const EdgeInsets.all(8.0),
-                color: Colors.grey[200],
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.start,
-                  children: [
-                    const Padding(
-                      padding: EdgeInsets.only(bottom: 8.0),
-                      child: Text("拼圖塊", style: TextStyle(fontWeight: FontWeight.bold)),
-                    ),
-                    Expanded(
-                      child: SingleChildScrollView(
-                        child: Wrap(
-                          spacing: 8.0,
-                          runSpacing: 8.0,
-                          children: trayPieces.map((pieceValue) {
-                            // 托盤中的拼圖大小使用主拼圖板的 pieceSize 來計算，確保一致性
-                            double trayPieceSize = pieceSize * 0.9;
-
-                            return Draggable<int>(
-                              data: pieceValue,
-                              child: Container(
-                                width: trayPieceSize,
-                                height: trayPieceSize,
-                                decoration: BoxDecoration(
-                                  border: Border.all(color: Colors.black, width: 1),
-                                ),
-                                child: RawImage(
-                                  image: pieces[pieceValue],
-                                  fit: BoxFit.cover,
-                                ),
-                              ),
-                              feedback: SizedBox(
-                                width: pieceSize,
-                                height: pieceSize,
-                                child: Opacity(
-                                  opacity: 0.8,
-                                  child: RawImage(
-                                    image: pieces[pieceValue],
-                                    fit: BoxFit.cover,
-                                  ),
-                                ),
-                              ),
-                              childWhenDragging: Container(
-                                width: trayPieceSize,
-                                height: trayPieceSize,
-                                color: Colors.transparent,
-                              ),
-                            );
-                          }).toList(),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          );
-        },
+            ),
+          ),
+        ),
       ),
     );
-  }
-}//拼圖遊戲
+  }//畫面外觀
 
-extension ListEquality<T> on List<T> {
-  bool equals(List<T> other) {
-    if (length != other.length) return false;
-    for (int i = 0; i < length; i++) {
-      if (this[i] != other[i]) return false;
-    }
-    return true;
+  Widget _buildDraggablePiece(int boardIndex, int pieceIndex) {
+    // 這是顯示在格子裡的拼圖 Widget
+    Widget pieceWidget = Container(
+      color: Colors.white, // 避免透明時看到底色
+      child: RawImage(
+        image: pieces[pieceIndex],
+        fit: BoxFit.cover,
+      ),
+    );
+
+    return DragTarget<int>(
+      // 當其他拼圖拖到這個格子上方時
+      onWillAcceptWithDetails: (details) => true, // 總是接受交換
+      onAcceptWithDetails: (details) {
+        // details.data 是「來源格子的 Index」(fromIndex)
+        int fromIndex = details.data;
+        int toIndex = boardIndex;
+
+        if (fromIndex != toIndex) {
+          _swapPieces(fromIndex, toIndex);
+        }
+      },
+      builder: (context, candidateData, rejectedData) {
+        // 使用 Draggable 包裹，確保每個位置的拼圖都能被拖曳
+        return Draggable<int>(
+          data: boardIndex, // 傳遞「我是從哪個格子來的」
+          feedback: SizedBox(
+            // 拖曳時的樣子 (稍微縮小一點增加手感)
+            width: 100,
+            height: 100,
+            child: Opacity(
+              opacity: 0.8,
+              child: Material(
+                elevation: 4,
+                child: pieceWidget,
+              ),
+            ),
+          ),
+          childWhenDragging: Container(
+            color: Colors.black12, // 拖曳時原地顯示的顏色
+          ),
+          child: pieceWidget, // 平常顯示的樣子
+        );
+      },
+    );
   }
-}// 小工具：判斷兩個 List 是否相等(拼圖遊戲)
+
+}//拼圖遊戲
