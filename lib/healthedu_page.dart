@@ -1,9 +1,6 @@
-//import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-//import 'package:flutter_tts/flutter_tts.dart';
-//import 'package:google_fonts/google_fonts.dart';
-//import 'package:url_launcher/url_launcher.dart';
+
 
 // ------------------------------------
 // 1. 資料結構 Model
@@ -83,11 +80,7 @@ class _AlzheimerEduScreenState extends State<AlzheimerEduScreen> {
         .toList();
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('💡 阿茲海默症衛教專區'),
-        backgroundColor: Theme.of(context).primaryColor,
-        foregroundColor: Colors.white,
-      ),
+
       // 使用 Row 來實現側邊欄和內容的並列佈局
       body: Row(
         children: <Widget>[
@@ -145,11 +138,26 @@ class ArticleList extends StatelessWidget {
         // 當前分類標題
         Padding(
           padding: const EdgeInsets.all(16.0),
-          child: Text(
-            '${category} - 衛教文章 (${articles.length} 則)',
-            style: Theme.of(context).textTheme.headlineMedium,
+          child: Container(
+            width: double.infinity, // ⭐ 讓整行都變色（重點）
+            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+            decoration: BoxDecoration(
+              color: Theme.of(context).primaryColor,
+              borderRadius: BorderRadius.circular(8), // 可要可不要
+            ),
+            child: Center(
+              child: Text(
+                category,
+                style: Theme.of(context)
+                    .textTheme
+                    .headlineMedium
+                    ?.copyWith(color: Colors.white),
+              ),
+            ),
+
           ),
         ),
+
 
         // 文章列表 (像新聞一樣)
         Expanded(
