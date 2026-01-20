@@ -98,7 +98,7 @@ class _AssessmentFlowPageState extends State<AssessmentFlowPage> {
 
   // async 方法，因為網路請求是異步的
   Future<void> _submitResults() async {
-    // 1. 顯示載入中的轉圈圈 (這是良好的 UX)
+    // 1. 顯示載入中的轉圈圈
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -106,24 +106,32 @@ class _AssessmentFlowPageState extends State<AssessmentFlowPage> {
     );
 
     // 2. 打包數據
-    // 這裡的 key (例如 "memory_score") 要看後端 API 定義的欄位名稱
+    // 要看 API 的欄位名稱
     final Map<String, dynamic> requestData = {
+      "Age":60,
+      "BMI":22.5,
+
       "MemoryComplaints": _result.memoryScore,
-      "ADL": _result.adlScore,
+      "ADL": _result.adlScore / 10,
       "SleepQuality": _result.sleepScore,
       "MMSE": _result.mmseScore,
       "BehavioralProblems": _result.behaviorScore,
       "FunctionalAssessment": _result.functionScore
     };
 
+    //API 指定要放在 "data" 裡面
+    final Map<String, dynamic> requestBody = {
+      "data": requestData
+    };
+
     try {
       // 3. 發送 API 請求
-      final Uri url = Uri.parse("http://himhealth.mcu.edu.tw:8048/docs#/default/predict_v1_predict_post");
+      final Uri url = Uri.parse("http://himhealth.mcu.edu.tw:8048/v1/predict");
 
       final response = await http.post(
         url,
         headers: {"Content-Type": "application/json"},
-        body: jsonEncode(requestData), // 將 Map 轉為 JSON 字串
+        body: jsonEncode(requestBody), // 將 Map 轉為 JSON 字串
       );
 
       // 關閉載入中的轉圈圈
@@ -131,40 +139,143 @@ class _AssessmentFlowPageState extends State<AssessmentFlowPage> {
 
       // 4. 檢查伺服器回應
       if (response.statusCode == 200 || response.statusCode == 201) {
-        // --- 成功：顯示原本的成功對話框 ---
-        _showSuccessDialog();
+
+        // 1. 解碼 JSON
+        final responseData = jsonDecode(response.body);
+
+        // 2. 讀取關鍵數據
+        // 注意：根據您的 Log，欄位名稱是 'prediction' 和 'risk_probability'
+        int prediction = responseData['prediction'];
+        double probability = responseData['risk_probability'];
+
+        print("解析成功 - 結果: $prediction, 機率: $probability");
+
+        // 3. 呼叫彈出視窗，把這兩個數字傳進去
+        _showSuccessDialog(prediction, probability);
+
       } else {
-        // --- 失敗：顯示錯誤訊息 ---
-        _showErrorSnackBar("上傳失敗 (錯誤碼: ${response.statusCode})");
+
+        print("上傳失敗，狀態碼: ${response.statusCode}");
+        print("伺服器回應錯誤訊息: ${response.body}");
+
+        _showErrorSnackBar("上傳失敗: ${response.statusCode}");
       }
     } catch (e) {
       // 關閉載入中
       if (mounted) Navigator.pop(context);
-      // 網路連線異常 (例如沒開網路)
+      // 網路連線異常
       _showErrorSnackBar("連線錯誤：$e");
     }
   }
 
-  // 評估成功對話框
-  void _showSuccessDialog() {
+  // 顯示結果(接收預測結果和機率)
+  void _showSuccessDialog(int prediction, double probability) {
+
+    // 1. 判斷邏輯：如果是 1 就是高風險
+    bool isHighRisk = (prediction == 1);
+
+    // 2. 設定顏色與文字
+    // 高風險用紅色，低風險用綠色
+    Color themeColor = isHighRisk ? Colors.red : Colors.green;
+    String titleText = isHighRisk ? "風險預警" : "評估完成";
+    IconData titleIcon = isHighRisk ? Icons.warning_amber_rounded : Icons.check_circle_outline;
+
+    String messageText = isHighRisk
+        ? "模型分析顯示您可能有潛在的阿茲海默症風險。\n建議您儘速前往神經內科或精神科進行詳細檢查。"
+        : "模型分析顯示目前的風險較低。\n請繼續保持良好的生活習慣與運動！";
+
+    // 3. 把機率變成百分比
+    String probString = "${(probability * 100).toStringAsFixed(1)}%";
+
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (ctx) => AlertDialog(
-        title: const Text("評估完成"),
-        content: Text("您的評估結果已成功上傳！\n\n${_result.toString()}"),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        // 標題區
+        title: Row(
+          children: [
+            Icon(titleIcon, color: themeColor, size: 28),
+            const SizedBox(width: 10),
+            Text(
+              titleText,
+              style: TextStyle(color: themeColor, fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
+        // 內容區
+        content: SingleChildScrollView(
+          child: ListBody(
+            children: [
+              // --- 顯示機率的大框框 ---
+              Container(
+                padding: const EdgeInsets.symmetric(vertical: 15, horizontal: 10),
+                decoration: BoxDecoration(
+                  color: themeColor.withOpacity(0.1), // 淺色背景
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: themeColor.withOpacity(0.5)),
+                ),
+                child: Column(
+                  children: [
+                    Text("預測患病機率", style: TextStyle(color: themeColor, fontSize: 14)),
+                    const SizedBox(height: 5),
+                    Text(
+                      probString,
+                      style: TextStyle(
+                          color: themeColor,
+                          fontSize: 32,
+                          fontWeight: FontWeight.bold
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
+
+              // --- 建議文字 ---
+              Text(messageText, style: const TextStyle(fontSize: 16, height: 1.5)),
+              const Divider(height: 30, thickness: 1),
+
+              // --- 原始分數列表 (讓使用者核對) ---
+              const Text("本次評估數據：", style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 10),
+              _buildScoreRow("MMSE (心智量表)", "${_result.mmseScore}"),
+              _buildScoreRow("ADL (生活功能)", "${_result.adlScore}"), // 顯示原始分數
+              _buildScoreRow("功能評估", "${_result.functionScore}"),
+              _buildScoreRow("記憶抱怨", "${_result.memoryScore}"),
+              _buildScoreRow("睡眠品質", "${_result.sleepScore}"),
+              _buildScoreRow("行為問題", "${_result.behaviorScore}"),
+            ],
+          ),
+        ),
+        // 按鈕區
         actions: [
-          ElevatedButton(
+          TextButton(
             onPressed: () {
-              Navigator.pop(ctx); // 關閉 Dialog
-              Navigator.pop(context); // 回到主頁面
+              Navigator.of(ctx).pop(); // 關閉 Dialog
+              Navigator.of(context).pop(); // 回到首頁
             },
-            child: const Text("完成，回到首頁"),
-          )
+            child: const Text("完成，回到首頁", style: TextStyle(fontSize: 16)),
+          ),
         ],
       ),
     );
   }
+
+  // 小工具：用來排版每一行分數
+  Widget _buildScoreRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4.0),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label, style: const TextStyle(fontSize: 14, color: Colors.black87)),
+          Text(value, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+        ],
+      ),
+    );
+  }
+
 
   // 顯示錯誤的輔助方法
   void _showErrorSnackBar(String message) {
@@ -314,7 +425,7 @@ class ADLForm extends StatefulWidget {
 }
 
 class _ADLFormState extends State<ADLForm> {
-  // 這裡建立了詳細的題目資料結構，包含每個分數對應的描述
+
   final List<Map<String, dynamic>> questions = [
     {
       "title": "1.進食",
