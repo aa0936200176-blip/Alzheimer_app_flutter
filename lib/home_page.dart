@@ -5,6 +5,9 @@ import 'dart:ui' as ui;//拼圖遊戲
 import 'package:flutter/services.dart';//拼圖遊戲
 
 
+// =======================
+// 翻牌遊戲
+// =======================
 class GameLevelPage extends StatefulWidget {
   const GameLevelPage({super.key});
 
@@ -239,6 +242,9 @@ class _GameLevelPageState extends State<GameLevelPage> {
 }//翻牌遊戲
 
 
+// =======================
+// 看字選色遊戲
+// =======================
 class Game2Page extends StatefulWidget {
   const Game2Page({super.key});
   @override
@@ -513,6 +519,9 @@ class _Game2PageState extends State<Game2Page> {
 }//看字選色遊戲
 
 
+// =======================
+// 拼圖遊戲
+// =======================
 class PuzzleGamePage extends StatefulWidget {
   const PuzzleGamePage({super.key});
 
@@ -522,7 +531,7 @@ class PuzzleGamePage extends StatefulWidget {
 
 class _PuzzleGamePageState extends State<PuzzleGamePage> {
   int level = 1;
-  int gridSize = 3; // 起始為 3x3，如截圖所示
+  int gridSize = 3; // 起始為 3x3
   bool isLoading = true;
 
   // 核心數據結構：currentBoardState 存儲目前網格上每個位置放的是哪一號拼圖
@@ -531,6 +540,19 @@ class _PuzzleGamePageState extends State<PuzzleGamePage> {
 
   late List<ui.Image> pieces; // 切割好的圖片碎片
   ui.Image? fullImage;
+
+  final List<String> imagePaths = [
+    "assets/image/animal1.jpeg",
+    "assets/image/animal2.jpeg",
+    "assets/image/animal3.jpg",
+    "assets/image/animal4.jpg",
+    "assets/image/animal5.jpg",
+    "assets/image/animal6.png",
+    "assets/image/animal7.jpg",
+    "assets/image/animal8.jpg",
+    "assets/image/animal9.jpg",
+    "assets/image/animal10.jpg"
+  ];//圖片
 
   @override
   void initState() {
@@ -541,13 +563,18 @@ class _PuzzleGamePageState extends State<PuzzleGamePage> {
   Future<void> _startLevel() async {
     // 隨著等級增加難度 (3x3 -> 4x4 -> 5x5...)
     gridSize = 2 + (level / 2).ceil();
-    if (gridSize < 3) gridSize = 3; // 保持最小 3x3
+    if (gridSize < 3) gridSize = 3; // 最小 3x3
+    if(gridSize > 6) gridSize = 6;//限制最大只能到 6x6
 
     int totalPieces = gridSize * gridSize;
 
     try {
-      // 載入圖片
-      final data = await rootBundle.load("assets/image/animal2.jpeg");
+      // 計算要用哪張圖 (使用取餘數 % 運算，讓圖片可以循環使用)
+      int imageIndex = (level - 1) % imagePaths.length;
+      String currentAsset = imagePaths[imageIndex];
+
+      final data = await rootBundle.load(currentAsset);// 載入選定的圖片
+
       final codec = await ui.instantiateImageCodec(data.buffer.asUint8List());
       final frame = await codec.getNextFrame();
       ui.Image loadedImage = frame.image;
@@ -574,7 +601,7 @@ class _PuzzleGamePageState extends State<PuzzleGamePage> {
         isLoading = false;
       });
     }
-  }
+  }//切割圖片
 
 
   Future<List<ui.Image>> _splitImage(ui.Image image, int grid) async {
@@ -659,6 +686,12 @@ class _PuzzleGamePageState extends State<PuzzleGamePage> {
 
   @override
   Widget build(BuildContext context) {
+
+    String currentImgPath = "";
+    if (imagePaths.isNotEmpty) {
+      currentImgPath = imagePaths[(level - 1) % imagePaths.length];
+    }// 避免除以零或索引錯誤
+
     return Scaffold(
       extendBodyBehindAppBar: true,
       appBar: AppBar(
@@ -681,47 +714,94 @@ class _PuzzleGamePageState extends State<PuzzleGamePage> {
         alignment: Alignment.center,
 
         child: isLoading
-            ? const CircularProgressIndicator(color: Colors.white)
-            : Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: AspectRatio(
-            aspectRatio: 1, // 2. 強制鎖定拼圖區為正方形
-            child: Container(
-              decoration: BoxDecoration(
-                color: Colors.black, // 黑色縫隙底色
-                borderRadius: BorderRadius.circular(4),
-                boxShadow: const [
-                  BoxShadow(
-                    color: Colors.black54,
-                    blurRadius: 10,
-                    offset: Offset(0, 5),
-                  ),
-                ],
-              ),
-              padding: const EdgeInsets.all(2.0),
+            ? const Center(child: CircularProgressIndicator(color: Colors.white))
+            : SafeArea(
+          // SafeArea 確保內容不會被手機瀏海或底部橫條擋住
+          child: Column(
+            children: [
+              // --- 上半部：拼圖遊戲區 ---
+              Expanded(
+                flex: 4, // 權重設為 4，讓拼圖區佔比較大
+                child: Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: AspectRatio(
+                      aspectRatio: 1, // 保持正方形
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: Colors.black,
+                          borderRadius: BorderRadius.circular(4),
+                          boxShadow: const [
+                            BoxShadow(
+                              color: Colors.black54,
+                              blurRadius: 10,
+                              offset: Offset(0, 5),
+                            ),
+                          ],
+                        ),
+                        padding: const EdgeInsets.all(2.0),
 
-              // ★★★ 關鍵修正：移除所有自動留白 ★★★
-              child: MediaQuery.removePadding(
-                context: context,
-                removeTop: true, // 告訴 Flutter 不要因為有 AppBar 就往下推
-                removeBottom: true,
-                child: GridView.builder(
-                  // 3. 另外加上 padding: zero 確保萬無一失
-                  padding: EdgeInsets.zero,
-                  physics: const NeverScrollableScrollPhysics(),
-                  itemCount: currentBoardState.length,
-                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: gridSize,
-                    crossAxisSpacing: 2.0,
-                    mainAxisSpacing: 2.0,
+                        child: MediaQuery.removePadding(
+                          context: context,
+                          removeTop: true,
+                          removeBottom: true,
+                          child: GridView.builder(
+                            padding: EdgeInsets.zero,
+                            physics: const NeverScrollableScrollPhysics(),
+                            itemCount: currentBoardState.length,
+                            gridDelegate:
+                            SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: gridSize,
+                              crossAxisSpacing: 2.0,
+                              mainAxisSpacing: 2.0,
+                            ),
+                            itemBuilder: (context, index) {
+                              int pieceIndex = currentBoardState[index];
+                              return _buildDraggablePiece(index, pieceIndex);
+                            },
+                          ),
+                        ),
+                      ),
+                    ),
                   ),
-                  itemBuilder: (context, index) {
-                    int pieceIndex = currentBoardState[index];
-                    return _buildDraggablePiece(index, pieceIndex);
-                  },
                 ),
               ),
-            ),
+
+              // --- 下半部：原圖區 ---
+              Expanded(
+                flex: 1, // 權重設為 1，佔比較小
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Text(
+                      "原圖",
+                      style: TextStyle(
+                          color: Colors.white70,
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Container(
+                      height: 100, // 固定高度，避免圖片太大
+                      decoration: BoxDecoration(
+                        border: Border.all(color: Colors.white, width: 2),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      // 這裡直接顯示圖片，不需要用切割後的 ui.Image
+                      child: currentImgPath.isNotEmpty
+                          ? ClipRRect(
+                        borderRadius: BorderRadius.circular(6),
+                        child: Image.asset(currentImgPath, fit: BoxFit.contain),
+                      )
+                          : const SizedBox(),
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 20), // 底部稍微留白
+            ],
           ),
         ),
       ),
