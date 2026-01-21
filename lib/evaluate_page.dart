@@ -1,4 +1,3 @@
-import 'package:alzheimer_app/main.dart';
 import 'package:flutter/material.dart';
 import 'dart:convert'; // 用來轉 JSON
 import 'package:http/http.dart' as http; // 用來發送請求

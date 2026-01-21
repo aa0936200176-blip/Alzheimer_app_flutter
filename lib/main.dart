@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'home_page.dart';//遊戲訓練
 import 'home_page_review.dart';//遊戲回顧
-import 'remind_page.dart';//每日提醒
+import 'remind_page.dart';//每日提醒(日曆)
 import 'evaluate_page.dart';//問卷評估
 import 'login_page.dart';//登入
 import 'healthedu_page.dart';//衛教宣導
@@ -78,18 +78,22 @@ class _MainPageState extends State<MainPage> {
   }
 
   Widget _buildHomePage(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(11.0),
-      child: GridView.count(
-        crossAxisCount: 2,
-        crossAxisSpacing: 20,
-        mainAxisSpacing: 20,
-        children: [
-          _buildGameButton(context, '記憶翻牌', 'assets/image/a.jpg', const GameLevelPage()),
-          _buildGameButton(context, '益智拼圖', 'assets/image/a.jpg', PuzzleGamePage()),
-          _buildGameButton(context, '看字選色', 'assets/image/a.jpg', const Game2Page()),
-          //0_buildGameButton(context, '遊戲回顧', 'assets/image/a.jpg', const GameReviewPage()),
-        ],
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(11.0),
+        child: GridView.count(
+          shrinkWrap: true, //讓 GridView 根據內容縮小高度
+          physics: const NeverScrollableScrollPhysics(),//讓按鈕區域不可滑動
+          crossAxisCount: 2,
+          crossAxisSpacing: 20,
+          mainAxisSpacing: 20,
+          children: [
+            _buildGameButton(context, '記憶翻牌', 'assets/image/a.jpg', const GameLevelPage()),
+            _buildGameButton(context, '益智拼圖', 'assets/image/a.jpg', PuzzleGamePage()),
+            _buildGameButton(context, '看字選色', 'assets/image/a.jpg', const Game2Page()),
+            //_buildGameButton(context, '遊戲回顧', 'assets/image/a.jpg', const GameReviewPage()),
+          ],
+        ),
       ),
     );
   }// 首頁四個遊戲按鈕
