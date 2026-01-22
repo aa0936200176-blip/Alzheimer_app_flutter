@@ -27,7 +27,7 @@ class AddEventPage extends StatefulWidget {
 
 class _AddEventPageState extends State<AddEventPage> {
   final TextEditingController _controller = TextEditingController();
-  DateTime _selectedDate = DateTime.now();
+  late DateTime _selectedDate;//用late表示稍後在 initState 初始化
 
   // 下拉式選單用的事件名稱
   String _selectedTitle = '回診';
@@ -43,6 +43,36 @@ class _AddEventPageState extends State<AddEventPage> {
     '藍色': Colors.blue,
     '紫色': Colors.purple,
   };
+
+  @override
+  void initState() {
+    super.initState();
+    // 如果有傳入 initialDate (來自日曆點選)，就用它；否則用現在時間
+    _selectedDate = widget.initialDate ?? DateTime.now();
+
+    // 事件內容
+    if (widget.initialNote != null) {
+      _controller.text = widget.initialNote!;
+    }
+
+    // 設定顏色
+    if (widget.initialColor != null) {
+      _selectedColor = widget.initialColor!;
+    }
+
+    // 設定標題 (下拉選單)
+    if (widget.initialTitle != null) {
+
+      // 確保傳進來的標題確實存在於你的選項清單中
+      if (_eventOptions.contains(widget.initialTitle)) {
+        _selectedTitle = widget.initialTitle!;
+      } else {
+
+        // 如果舊標題不在清單內，預設為 '其他'，或者把這個舊標題臨時加進清單
+        _selectedTitle = '其他';
+      }
+    }
+  }//編輯事件設定
 
   @override
   Widget build(BuildContext context) {
@@ -205,20 +235,36 @@ class _RemindPage extends State<RemindPage>
 
   void _editEvent(int index) {
     final key = DateTime.utc(_selectedDay!.year, _selectedDay!.month, _selectedDay!.day);
-    //final oldEvent = _events[key]![index];
+    final oldEvent = _events[key]![index];
 
+    // 拆解字串
+    List<String> contentParts = oldEvent.title.split("  ");//兩個空白為切割點
+
+    String currentTitle = contentParts[0]; // 前面是標題 (例如: 回診)
+    String currentNote = "";               // 預設備註為空
+
+    // 如果長度大於 1，代表後面有備註內容，就把它抓出來
+    if (contentParts.length > 1) {
+      currentNote = contentParts[1];
+    }
 
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => AddEventPage(//編輯完成後，按下儲存，onSave 就會更新原本的事件資料
+        builder: (context) => AddEventPage(
+          // 傳入拆解後的舊資料
+          initialDate: _selectedDay,    // 日期
+          initialTitle: currentTitle,   // 標題
+          initialColor: oldEvent.color, // 顏色
+          initialNote: currentNote,     // 備註內容
+
           onSave: (newDate, newTitle, newColor, newNote) {
             setState(() {
-              _events[key]![index] = Event(title: "$newTitle"+ "  " +"$newNote", color: newColor);
+              // 編輯後的儲存邏輯
+              _events[key]![index] = Event(title: "$newTitle  $newNote", color: newColor);
               _selectedEvents = _getEventsForDay(_selectedDay!);
             });
           },
-
         ),
       ),
     );
@@ -362,7 +408,10 @@ class _RemindPage extends State<RemindPage>
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (context) => AddEventPage(onSave: _addEvent),//按下按鈕後會跳轉到一個新增事件頁面（AddEventPage）
+                    builder: (context) => AddEventPage(//AddEventPage按下按鈕後會跳轉到一個新增事件頁面
+                      onSave: _addEvent,
+                      initialDate: _selectedDay ?? DateTime.now()//如果 _selectedDay還沒點選，就預設為現在時間
+                    ),
                   ),
                 );
               },
