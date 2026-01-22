@@ -32,12 +32,64 @@ class _GameLevelPageState extends State<GameLevelPage> {
   void initState() {
     super.initState();
     _startLevel();
-    timer = Timer.periodic(const Duration(seconds: 1), (_) {
-      setState(() {
-        seconds++;
-      });//啟動 Timer，每秒數字 +1
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      showGameRulesDialog();
     });
   }
+
+
+  void showGameRulesDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false, // 強制使用者必須點擊按鈕才能關閉 (避免點擊旁邊誤關)
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text("📜 遊戲規則"),
+          content: const SingleChildScrollView(
+            child: ListBody(
+              children: <Widget>[
+                Text("歡迎來到翻牌記憶遊戲！"),
+                SizedBox(height: 10),
+                Text("1. 點擊卡片翻開圖案"),
+                Text("2. 連續翻開兩張相同的卡片即可配對"),
+                Text("3. 配對所有卡片即可進入下一關"),
+                Text("4. 越快完成越厲害喔！"),
+              ],
+            ),
+          ),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context); // 關閉對話框
+                Navigator.pop(context); // 退出遊戲頁面
+              },
+              child: const Text("離開"),
+            ),
+            ElevatedButton(
+              child: const Text("開始遊戲"),
+              onPressed: () {
+                Navigator.of(context).pop(); // 關閉對話框
+                _startTimer(); // 按下按鈕後才開始計時
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }//遊戲規則視窗
+
+
+  void _startTimer() {
+    timer?.cancel(); // 防止重複啟動
+    timer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) { // 確保 Widget 還在
+        setState(() {
+          seconds++;
+        });
+      }
+    });
+  }//計時器啟動
 
 
   void _startLevel() {
@@ -274,12 +326,15 @@ class _Game2PageState extends State<Game2Page> {
   Timer? _roundTimer; // 每 2 秒換題計時器
   int _timeLeft = 30; // 總遊戲剩餘時間
   bool _isGameOver = false; // 遊戲是否結束
-  // --------------------------
+
 
   @override
   void initState() {
     super.initState();
-    startGame();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      showGameRulesDialog();
+    });
   }
 
   @override
@@ -289,6 +344,50 @@ class _Game2PageState extends State<Game2Page> {
     _roundTimer?.cancel();
     super.dispose();
   }
+
+  void showGameRulesDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false, // 禁止點擊旁邊關閉，強迫按按鈕
+      builder: (_) => AlertDialog(
+        title: const Text("📖 遊戲規則"),
+        content: const SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text("1. 螢幕會顯示一個有顏色的文字"),
+              SizedBox(height: 8),
+              Text("2. 請忽略文字本身的顏色，專注於文字的【意思】"),
+              SizedBox(height: 8),
+              Text(
+                "例如：看到藍色的「紅」字，請選擇【紅色】的方塊",
+                style: TextStyle(fontWeight: FontWeight.bold, color: Colors.red),
+              ),
+              SizedBox(height: 8),
+              Text("3. 限時 30 秒，動作要快！"),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context); // 關閉對話框
+              Navigator.pop(context); // 退出遊戲頁面
+            },
+            child: const Text("離開"),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context); // 1. 關閉規則視窗
+              startGame();            // 2. 這時候才真正開始倒數與出題！
+            },
+            child: const Text("開始遊戲"),
+          ),
+        ],
+      ),
+    );
+  }//遊戲規則視窗
 
   void startGame() {
     setState(() {
@@ -558,7 +657,67 @@ class _PuzzleGamePageState extends State<PuzzleGamePage> {
   void initState() {
     super.initState();
     _startLevel();
+
+    if (level == 1) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _showRulesDialog();
+      });
+    }//在第一關跳出遊戲規則
   }
+
+  void _showRulesDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false, // 設定為 false，強制使用者必須按按鈕才能關閉
+      builder: (context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+          title: const Row(
+            children: [
+              Icon(Icons.help_outline, color: Colors.blue), // 小圖示
+              SizedBox(width: 8),
+              Text("遊戲規則", style: TextStyle(fontWeight: FontWeight.bold)),
+            ],
+          ),
+          content: const Column(
+            mainAxisSize: MainAxisSize.min, // 視窗高度只需包住內容
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text("歡迎來到益智拼圖挑戰！", style: TextStyle(fontWeight: FontWeight.bold)),
+              SizedBox(height: 10),
+              Text("1. 觀察下方的目標圖片"),
+              SizedBox(height: 5),
+              Text("2. 按住並拖曳上方的拼圖塊，與其他位置交換"),
+              SizedBox(height: 5),
+              Text("3. 當所有拼圖都回到正確位置時，即可過關"),
+              SizedBox(height: 15),
+              Text("準備好了嗎？", style: TextStyle(color: Colors.red)),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context); // 關閉對話框
+                Navigator.pop(context); // 退出遊戲頁面
+              },
+              child: const Text("離開"),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF4A90E2), // 按鈕顏色
+                foregroundColor: Colors.white,
+              ),
+              onPressed: () {
+                Navigator.of(context).pop(); // 關閉對話框，正式開始
+              },
+              child: const Text("開始遊戲"),
+            ),
+          ],
+        );
+      },
+    );
+  }//遊戲規則訊息
+
 
   Future<void> _startLevel() async {
     // 隨著等級增加難度 (3x3 -> 4x4 -> 5x5...)
