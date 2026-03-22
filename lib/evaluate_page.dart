@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'dart:convert'; // 用來轉 JSON
 import 'package:http/http.dart' as http; // 用來發送請求
+import 'package:shared_preferences/shared_preferences.dart';
+import 'api.dart'; // 確保路徑正確，用來呼叫 getProfile 的檔案
 import 'profile_page.dart';
 
 // =======================
@@ -102,72 +104,93 @@ class _AssessmentFlowPageState extends State<AssessmentFlowPage> {
 
   // async 方法，因為網路請求是異步的
   Future<void> _submitResults() async {
-    //顯示載入中的轉圈圈
+    // 顯示載入中
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (ctx) => const Center(child: CircularProgressIndicator()),
     );
 
-    // 打包數據
-    // 要看 API 的欄位名稱
-    final Map<String, dynamic> requestData = {
-      "Age":60,
-      "BMI":22.5,
-
-      "MemoryComplaints": _result.memoryScore,
-      "ADL": _result.adlScore / 10,
-      "SleepQuality": _result.sleepScore,
-      "MMSE": _result.mmseScore,
-      "BehavioralProblems": _result.behaviorScore,
-      "FunctionalAssessment": _result.functionScore
-    };
-
-    //API 指定要放在 "data" 裡面
-    final Map<String, dynamic> requestBody = {
-      "account": widget.account,
-      "data": requestData
-    };
-
     try {
-      //發送 API 請求
-      //final Uri url = Uri.parse("http://himhealth.mcu.edu.tw:8048/v1/predict_and_log");
-      final Uri url = Uri.parse("http://120.125.78.193:8048/v1/predict_and_log");
+
+      // 取得真實的 Age 與 BMI
+      final prefs = await SharedPreferences.getInstance();
+      final currentAccount = prefs.getString('currentAccount') ?? ''; // 取得登入帳號
+
+      int userAge = 60;        // 預設值 (防呆用)
+      double userBmi = 22.5;   // 預設值 (防呆用)
+
+      if (currentAccount.isNotEmpty) {
+        // 呼叫 API 取得個人資料
+        final profileData = await ApiService().getProfile(currentAccount);
+
+        // 解析生日並計算年齡
+        final birthdayStr = profileData['birthday'] as String? ?? '';
+        final birthday = DateTime.tryParse(birthdayStr);
+        if (birthday != null) {
+          final today = DateTime.now();
+          userAge = today.year - birthday.year;
+          if (today.month < birthday.month ||
+              (today.month == birthday.month && today.day < birthday.day)) {
+            userAge--;
+          }
+        }
+
+        // 解析身高體重並計算 BMI
+        final height = (profileData['height'] as num?)?.toDouble() ?? 160.0;
+        final weight = (profileData['weight'] as num?)?.toDouble() ?? 50.0;
+        if (height > 0) {
+          userBmi = weight / ((height / 100) * (height / 100));
+        }
+      }
+
+      // 準備內層的資料 (帶入剛剛算好的 userAge 和 userBmi)
+      final Map<String, dynamic> requestData = {
+        "Age": userAge,
+        "BMI": userBmi,
+        "FunctionalAssessment": _result.functionScore,
+        "ADL": _result.adlScore / 10.0,
+        "MMSE": _result.mmseScore,
+        "SleepQuality": _result.sleepScore,
+        "MemoryComplaints": _result.memoryScore,
+        "BehavioralProblems": _result.behaviorScore,
+      };
+
+      //準備外層的包裹
+      final Map<String, dynamic> requestBody = {
+        "data": requestData
+      };
+
+      // 發送 API 請求
+      final Uri url = Uri.parse("http://himhealth.mcu.edu.tw:8048/v1/predict");
+
       final response = await http.post(
         url,
         headers: {"Content-Type": "application/json"},
-        body: jsonEncode(requestBody), // 將 Map 轉為 JSON 字串
+        body: jsonEncode(requestBody),
       );
 
       // 關閉載入中的轉圈圈
       if (mounted) Navigator.pop(context);
 
-      // 檢查伺服器回應
+      // 5. 檢查伺服器回應
       if (response.statusCode == 200 || response.statusCode == 201) {
-
-        // 解碼 JSON
         final responseData = jsonDecode(response.body);
-
-        // 讀取關鍵數據
         int prediction = responseData['prediction'];
         double probability = responseData['risk_probability'];
 
-        print("解析成功 - 結果: $prediction, 機率: $probability");
+        print("✅ 預測成功！結果: $prediction, 機率: $probability");
 
-        // 呼叫彈出視窗，把這兩個數字傳進去
+        // 顯示結果視窗
         _showSuccessDialog(prediction, probability);
 
       } else {
-
-        print("上傳失敗，狀態碼: ${response.statusCode}");
-        print("伺服器回應錯誤訊息: ${response.body}");
-
+        print("❌ 上傳失敗，狀態碼: ${response.statusCode}");
         _showErrorSnackBar("上傳失敗: ${response.statusCode}");
       }
     } catch (e) {
       // 關閉載入中
       if (mounted) Navigator.pop(context);
-      // 網路連線異常
       _showErrorSnackBar("連線錯誤：$e");
     }
   }
