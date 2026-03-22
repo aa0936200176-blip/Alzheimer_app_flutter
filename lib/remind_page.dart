@@ -409,8 +409,8 @@ class _RemindPage extends State<RemindPage>
                   context,
                   MaterialPageRoute(
                     builder: (context) => AddEventPage(//AddEventPage按下按鈕後會跳轉到一個新增事件頁面
-                      onSave: _addEvent,
-                      initialDate: _selectedDay ?? DateTime.now()//如果 _selectedDay還沒點選，就預設為現在時間
+                        onSave: _addEvent,
+                        initialDate: _selectedDay ?? DateTime.now()//如果 _selectedDay還沒點選，就預設為現在時間
                     ),
                   ),
                 );

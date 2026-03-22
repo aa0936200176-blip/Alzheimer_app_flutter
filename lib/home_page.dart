@@ -3,13 +3,74 @@ import 'dart:async'; // 因為使用了 Timer
 import 'dart:math';// 因為使用了Random()
 import 'dart:ui' as ui;//拼圖遊戲
 import 'package:flutter/services.dart';//拼圖遊戲
+import 'api.dart';
 
 
+class HomePage extends StatelessWidget {
+  final String account;
+
+  const HomePage({super.key, required this.account});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('首頁'),
+      ),
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+
+            const SizedBox(height: 30),
+
+            ElevatedButton(
+              child: const Text("翻牌記憶遊戲"),
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) =>  GameLevelPage(account: account),
+                  ),
+                );
+              },
+            ),
+
+            ElevatedButton(
+              child: const Text("看字選色"),
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) =>  Game2Page(account: account),
+                  ),
+                );
+              },
+            ),
+
+            ElevatedButton(
+              child: const Text("拼圖遊戲"),
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) =>  PuzzleGamePage(account: account),
+                  ),
+                );
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
 // =======================
 // 翻牌遊戲
 // =======================
 class GameLevelPage extends StatefulWidget {
-  const GameLevelPage({super.key});
+  final String account;
+  const GameLevelPage({super.key, required this.account});
 
   @override
   State<GameLevelPage> createState() => _GameLevelPageState();
@@ -135,9 +196,9 @@ class _GameLevelPageState extends State<GameLevelPage> {
     if (firstIndex == null) {
       firstIndex = index;
     } else {
-      isChecking = true; // ✅ 鎖定
+      isChecking = true; // 鎖定
       if (images[firstIndex!] == images[index]) {
-        // ✅ 配對成功
+        // 配對成功
         setState(() {
           matched[firstIndex!] = true;
           matched[index] = true;
@@ -159,7 +220,7 @@ class _GameLevelPageState extends State<GameLevelPage> {
           });
         }
       } else {
-        // ❌ 失敗 → 兩張牌都保持翻開 1 秒再一起蓋回去
+        // 失敗 → 兩張牌都保持翻開 1 秒再一起蓋回去
         Future.delayed(const Duration(seconds: 1), () {
           setState(() {
             flipped[firstIndex!] = false;
@@ -174,6 +235,14 @@ class _GameLevelPageState extends State<GameLevelPage> {
 
 
   void _showFinalDialog() {
+
+    ApiService().saveGameResult(
+      account: widget.account,
+      gameType: "flip",
+      score: seconds,
+      seconds: seconds,
+      level: level,
+    );
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
@@ -218,12 +287,12 @@ class _GameLevelPageState extends State<GameLevelPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text("第 $level 關"),
+        title: Text("第 $level 關 - ${widget.account}"),
         actions: [
           Center(
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Text("⏱ $seconds 秒"),
+                child:  Text("⏱ $seconds 秒"),
               )),
         ],
       ),
@@ -298,7 +367,8 @@ class _GameLevelPageState extends State<GameLevelPage> {
 // 看字選色遊戲
 // =======================
 class Game2Page extends StatefulWidget {
-  const Game2Page({super.key});
+  final String account;
+  const Game2Page({super.key, required this.account});
   @override
   _Game2PageState createState() => _Game2PageState();
 }
@@ -425,6 +495,14 @@ class _Game2PageState extends State<Game2Page> {
   }
 
   void showGameOverDialog() {
+
+    ApiService().saveGameResult(
+      account: widget.account,
+      gameType: "color",
+      score: score,
+      seconds: 30 - _timeLeft,
+      level: 1,
+    );
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -472,10 +550,9 @@ class _Game2PageState extends State<Game2Page> {
     // 錯誤答案：預設為字體的顏色 (e.g. 字體是藍，顏色就是藍)
     Color wrongColor = displayColor;
 
-    // **********************************************
-    // 關鍵修改：處理顏色衝突
-    // **********************************************
-    // 判斷：如果 內容意義的顏色 (correctColor) 等於 字體的顏色 (wrongColor/displayColor)，
+
+    // 處理顏色衝突
+    // 如果 內容意義的顏色 (correctColor) 等於 字體的顏色 (wrongColor/displayColor)，
     // 則需要從列表中重新選取一個顏色作為錯誤答案，並確保它不等於 correctColor
     if (correctColor == wrongColor) {
 
@@ -492,7 +569,6 @@ class _Game2PageState extends State<Game2Page> {
         // 這是極端情況 (所有顏色都相同)，但為避免程式碼崩潰，仍保留原樣
       }
     }
-    // **********************************************
 
     borderColor1 = null;
     borderColor2 = null;
@@ -622,7 +698,8 @@ class _Game2PageState extends State<Game2Page> {
 // 拼圖遊戲
 // =======================
 class PuzzleGamePage extends StatefulWidget {
-  const PuzzleGamePage({super.key});
+  final String account;
+  const PuzzleGamePage({super.key, required this.account});
 
   @override
   State<PuzzleGamePage> createState() => _PuzzleGamePageState();
@@ -633,7 +710,7 @@ class _PuzzleGamePageState extends State<PuzzleGamePage> {
   int gridSize = 3; // 起始為 3x3
   bool isLoading = true;
 
-  // 核心數據結構：currentBoardState 存儲目前網格上每個位置放的是哪一號拼圖
+  // currentBoardState 存儲目前網格上每個位置放的是哪一號拼圖
   // 例如：currentBoardState[0] = 5 表示第 0 格放著第 5 號拼圖
   late List<int> currentBoardState;
 
@@ -819,12 +896,20 @@ class _PuzzleGamePageState extends State<PuzzleGamePage> {
   }// 檢查是否完成
 
   void _showWinDialog() {
+
+    ApiService().saveGameResult(
+      account: widget.account,
+      gameType: "puzzle",
+      score: level,
+      seconds: 0,
+      level: level,
+    );
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (_) => AlertDialog(
-        title: const Text("Level Completed! 🎉"),
-        content: const Text("Great job! Ready for the next challenge?"),
+        title: const Text("成功! 🎉"),
+        content: const Text("好棒！準備好迎接下一關了嗎？"),
         actions: [
           TextButton(
             onPressed: () {
@@ -835,7 +920,7 @@ class _PuzzleGamePageState extends State<PuzzleGamePage> {
               });
               _startLevel();
             },
-            child: const Text("Next Level"),
+            child: const Text("下一關"),
           ),
         ],
       ),
@@ -854,7 +939,7 @@ class _PuzzleGamePageState extends State<PuzzleGamePage> {
     return Scaffold(
       extendBodyBehindAppBar: true,
       appBar: AppBar(
-        title: Text("Level $level", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        title: Text("第 $level 關", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
         backgroundColor: Colors.transparent,
         elevation: 0,
         iconTheme: const IconThemeData(color: Colors.white),
@@ -869,7 +954,7 @@ class _PuzzleGamePageState extends State<PuzzleGamePage> {
             colors: [Color(0xFF4A90E2), Color(0xFF003366)],
           ),
         ),
-        // 1. 確保整個遊戲區塊在螢幕正中央
+        // 確保整個遊戲區塊在螢幕正中央
         alignment: Alignment.center,
 
         child: isLoading
@@ -994,7 +1079,7 @@ class _PuzzleGamePageState extends State<PuzzleGamePage> {
         return Draggable<int>(
           data: boardIndex, // 傳遞「我是從哪個格子來的」
           feedback: SizedBox(
-            // 拖曳時的樣子 (稍微縮小一點增加手感)
+            // 拖曳時的樣子
             width: 100,
             height: 100,
             child: Opacity(
