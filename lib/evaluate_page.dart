@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'api.dart'; // 確保路徑正確，用來呼叫 getProfile 的檔案
 import 'profile_page.dart';
 
+
 // =======================
 // 1. 資料模型 (儲存所有分數)
 // =======================
@@ -54,7 +55,7 @@ class AssessmentStartPage extends StatelessWidget {
               onPressed: () {
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (context) =>  AssessmentFlowPage(account: "")),
+                  MaterialPageRoute(builder: (context) =>  AssessmentFlowPage()),
                 );
               },
               child: const Padding(
@@ -73,11 +74,11 @@ class AssessmentStartPage extends StatelessWidget {
 // 3. 問卷主流程 (PageView)
 // =======================
 class AssessmentFlowPage extends StatefulWidget {
-  final String account;
+  //final String account;
 
   const AssessmentFlowPage({
     super.key,
-    required this.account,
+    //required this.account,
   });
 
   @override
@@ -104,6 +105,7 @@ class _AssessmentFlowPageState extends State<AssessmentFlowPage> {
 
   // async 方法，因為網路請求是異步的
   Future<void> _submitResults() async {
+    //print("送出 account = ${widget.account}");
     // 顯示載入中
     showDialog(
       context: context,
@@ -158,6 +160,7 @@ class _AssessmentFlowPageState extends State<AssessmentFlowPage> {
 
       //準備外層的包裹
       final Map<String, dynamic> requestBody = {
+        //"account":widget.account,
         "data": requestData
       };
 
@@ -279,8 +282,8 @@ class _AssessmentFlowPageState extends State<AssessmentFlowPage> {
         actions: [
           TextButton(
             onPressed: () {
-              Navigator.of(ctx).pop(); // 關閉 Dialog
-              Navigator.of(context).pop(); // 回到首頁
+              Navigator.of(ctx).pop(true); // 關閉 Dialog
+              Navigator.of(context).pop(true); // 回到首頁
             },
             child: const Text("完成，回到首頁", style: TextStyle(fontSize: 16)),
           ),

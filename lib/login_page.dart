@@ -49,7 +49,7 @@ class _LoginPageState extends State<LoginPage> {
     // 模擬模式
     //_apiService = ApiService(useMock: true);
 
-    // 後端完成後改成
+    // 正式
     _apiService = ApiService(useMock: false);
   }
 
@@ -75,7 +75,7 @@ class _LoginPageState extends State<LoginPage> {
   // ======================
 
   Future<void> _login() async {
-
+    //final account = _loginAccountController.text.trim();
     final loginAccount = _loginAccountController.text.trim(); // 改名避免遮蔽
     final password = _loginPasswordController.text.trim();
 
@@ -90,13 +90,14 @@ class _LoginPageState extends State<LoginPage> {
 
     try {
       final user = await _apiService.login(loginAccount, password);
-      //print("登入成功 user = $user");
+
       // 成功後直接跳轉到 MainPage，並傳入 user 資訊
       if (mounted) {
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
             builder: (context) => MainPage(initialUser: user), // 需要在 MainPage 支援 initialUser
+
           ),
         );
       }
@@ -158,7 +159,7 @@ class _LoginPageState extends State<LoginPage> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('註冊失敗：$e')),
+        SnackBar(content: Text(e.toString().replaceAll('Exception: ', ''))),
       );
     } finally {
       if (mounted) {
@@ -171,7 +172,6 @@ class _LoginPageState extends State<LoginPage> {
 
   @override
   Widget build(BuildContext context) {
-
     return Scaffold(
       appBar: AppBar(
         title: Text(isLoginMode ? '登入' : '註冊'),
@@ -301,8 +301,6 @@ class _LoginPageState extends State<LoginPage> {
       ),
     );
   }
-
-
   Widget _buildHomePage() {
     return Scaffold(
       appBar: AppBar(

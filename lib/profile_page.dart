@@ -1,13 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'api.dart';
-
+import 'evaluate_page.dart';
 
 class ProfilePage extends StatefulWidget {
   final String account;
   final Function()? onLogout;
   final Future<void> Function()? onRefreshPredictions;
-
   const ProfilePage({super.key, this.onLogout, required this.account,this.onRefreshPredictions,});
 
   @override
@@ -15,7 +14,7 @@ class ProfilePage extends StatefulWidget {
 }
 
 class _ProfilePageState extends State<ProfilePage> with RouteAware {
-  // 狀態變數
+  // 移除原本的 userData 依賴，改用狀態變數
   String name = '';
   String account = '';
   DateTime? birthday;
@@ -34,11 +33,12 @@ class _ProfilePageState extends State<ProfilePage> with RouteAware {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    //routeObserver.subscribe(this, ModalRoute.of(context)! as PageRoute);
     _refreshPredictions(); // 每次頁面顯示都刷新
   }
   @override
   void dispose() {
-
+    //routeObserver.unsubscribe(this);
     super.dispose();
   }
 
@@ -49,6 +49,7 @@ class _ProfilePageState extends State<ProfilePage> with RouteAware {
   }
   //預測結果
   List predictions = [];
+
 
   Future<void> _loadPredictions() async {
     try {
@@ -130,12 +131,20 @@ class _ProfilePageState extends State<ProfilePage> with RouteAware {
 
   Future<void> _logout() async {
     try {
+      // 1. 清除 API 的 token
+      //ApiService().setToken(null);
 
+      // 2. 清除本地儲存的 token（根據你實際使用的儲存方式）
+      // 如果使用 flutter_secure_storage：
+      // final storage = FlutterSecureStorage();
+      // await storage.delete(key: 'auth_token');
+
+      // 如果使用 shared_preferences（較不安全，但你原本就有用）：
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove('auth_token');     // 假設你存的是這個 key
       await prefs.remove('currentAccount'); // 保留你原本的清除
 
-      // 呼叫外部的登出回調（通常跳回登入頁）
+      // 3. 呼叫外部的登出回調（通常跳回登入頁）
       if (widget.onLogout != null) {
         widget.onLogout!();
       }
@@ -203,31 +212,6 @@ class _ProfilePageState extends State<ProfilePage> with RouteAware {
               child: ListTile(
                 title: Text('BMI: ${bmi.toStringAsFixed(1)} ($bmiLevel)'),
               ),
-            ),
-
-            Column(
-              children: predictions.isNotEmpty
-                  ? predictions.map((p) {
-                final prob = (p['probability'] * 100).toStringAsFixed(1);
-                return Card(
-                  child: ListTile(
-                    title: Text(
-                      "風險機率: $prob %",
-                      style: const TextStyle(fontSize: 16),
-                    ),
-                  ),
-                );
-              }).toList()
-                  : [
-                const Card(
-                  child: ListTile(
-                    title: Text(
-                      "尚無預測紀錄",
-                      style: TextStyle(fontSize: 16),
-                    ),
-                  ),
-                )
-              ],
             ),
 
             const SizedBox(height: 30),

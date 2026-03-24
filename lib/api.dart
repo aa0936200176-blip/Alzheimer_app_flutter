@@ -13,12 +13,14 @@ class ApiService {
       baseUrl: baseUrl,
       connectTimeout: const Duration(seconds: 30),
       receiveTimeout: const Duration(seconds: 30),
+      //headers: {"Content-Type": "application/json"}, // ✅ 預設加上 JSON
     ));
   }
 
 
   // 登入：POST /auth/login
   Future<Map<String, dynamic>> login(String account, String password) async {
+
     try {
       final response = await _dio.post(
         '/auth/login',
@@ -28,10 +30,18 @@ class ApiService {
         },
       );
 
-      return Map<String, dynamic>.from(response.data);}
-    on DioException catch (e) {
+      return Map<String, dynamic>.from(response.data);
+
+    } on DioException catch (e) {
       print("登入錯誤完整訊息 = $e");
-      rethrow;
+
+      //是帳密錯誤（常見 400 / 401）
+      if (e.response?.statusCode == 400 || e.response?.statusCode == 401) {
+        throw Exception('請輸入正確的帳號密碼');
+      }
+
+      // 其他錯誤（像斷線）
+      throw Exception('登入失敗，請稍後再試');
     }
   }
 
@@ -52,7 +62,17 @@ class ApiService {
         'birthday': birthday,
         'height': height,
         'weight': weight,
+        //'token': 'mock-jwt-token-xxx',
       };
+    }
+
+    // 前端防呆
+    if (height < 140 || height > 200) {
+      throw Exception('請輸入正確身高');
+    }
+
+    if (weight < 30 || weight > 150) {
+      throw Exception('請輸入正確體重');
     }
 
     try {
@@ -72,30 +92,32 @@ class ApiService {
       print('【REGISTER】後端回應狀態碼：${response.statusCode}');
       print('【REGISTER】後端回應內容：${response.data}');
 
+
       final data = Map<String, dynamic>.from(response.data);
-      // 失敗時手動丟錯誤
+      // 錯誤訊息
       if (response.statusCode != 200) {
-        throw Exception('後端回傳錯誤：${data['detail'] ?? response.statusCode}');
+        if (data['detail'] != null && data['detail'] is List) {
+          final detail = data['detail'][0];
+
+          if (detail['loc'].toString().contains('height')) {
+            throw Exception('身高格式錯誤（需 ≤ 250）');
+          } else if (detail['loc'].toString().contains('weight')) {
+            throw Exception('體重格式錯誤');
+          }
+        }
+
+        throw Exception('註冊失敗，請確認輸入資料');
       }
+
       if (!data.containsKey('account')) {
-        data['account'] = account; // 如果後端沒回傳 account，就自己補
+        data['account'] = account;
       }
 
       return data;
+
     } on DioException catch (e) {
       print('註冊失敗：${e.response?.statusCode} - ${e.response?.data}');
-      print('【REGISTER】Dio 錯誤！！');
-      print('錯誤類型: ${e.type}');
-      print('錯誤訊息: ${e.message}');
-      if (e.response != null) {
-        print('回應狀態碼: ${e.response?.statusCode}');
-        print('回應資料: ${e.response?.data}');
-        print('回應 headers: ${e.response?.headers}');
-      } else {
-        print('沒有收到任何回應（response == null）');
-        print('可能是連線拒絕、timeout 或 DNS 問題');
-      }
-      rethrow;
+      throw Exception('網路錯誤，請稍後再試');
     }
   }
 
@@ -115,7 +137,7 @@ class ApiService {
     try {
       final response = await _dio.post('/users/me',data: {
         'account': account,
-      },); // 改成 POST
+      },); // ← 改成 POST
       return response.data as Map<String, dynamic>;
     } on DioException catch (e) {
       print('取得個人資料失敗：${e.response?.statusCode} - ${e.response?.data}');

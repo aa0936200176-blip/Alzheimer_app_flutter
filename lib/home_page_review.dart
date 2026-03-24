@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../api.dart';
 
-
 class GameReviewPage extends StatefulWidget {
 
   final String account;
@@ -78,6 +77,12 @@ class _GameReviewPageState extends State<GameReviewPage> {
       final value = (e.value[valueKey] as num?)?.toDouble() ?? 0;
       return FlSpot(index, value);
     }).toList();
+    if (spots.length == 1) {
+      spots.add(FlSpot(spots.first.x + 1, spots.first.y));
+    }
+    if (spots.length == 1) {
+      spots.add(FlSpot(spots.first.x + 1, spots.first.y));
+    }
 
     return Card(
       margin: const EdgeInsets.symmetric(vertical: 8),
